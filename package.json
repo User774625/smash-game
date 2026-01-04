@@ -1,17 +1,16 @@
 {
-  "name": "game_code",
+  "name": "smash-game",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Super Smash Bros Web Multiplayer",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
-    "express": "^5.2.1",
-    "socket.io": "^4.8.3"
-  }
+    "express": "^4.19.2",
+    "socket.io": "^4.8.0"
+  },
+  "author": "User774625",
+  "license": "MIT"
 }
