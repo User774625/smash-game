@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Super Smash Bros Prototype</title>
+  <style>body { margin: 20px; font-family: Arial; }</style>
+</head>
+<body>
+  <h2>Super Smash Bros Web [WASD/↑←↓→ Steuerung]</h2>
+  <canvas id="gameCanvas" width="800" height="600" style="border:2px solid #333; background: linear-gradient(to bottom, skyblue, lightgreen);"></canvas>
+  <div>
+    <strong>Status:</strong> <span id="status">Verbinde...</span> | 
+    <strong>Multiplayer:</strong> Mehrere Tabs/Browser öffnen!
+  </div>
+  
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const status = document.getElementById('status');
+    const socket = io();
+
+    let player = { 
+      id: '', 
+      respawnTimer: 0,
+      x: Math.random() * 600, 
+      y: 300, 
+      width: 35, 
+      height: 55, 
+      vx: 0, 
+      vy: 0, 
+      color: `hsl(${Math.random() * 360}, 80%, 55%)`, 
+      onGround: false 
+    };
+
+    socket.on('connect', () => {
+      player.id = socket.id.slice(0, 8);
+      status.textContent = `Verbunden als ${player.id}`;
+    });
+
+    socket.on('allPlayers', (players) => {
+      ctx.clearRect(0, 0, 800, 600);
+      
+      // Smash-Hintergrund & Plattformen
+      ctx.fillStyle = '#654321';  // Dunkles Braun
+      ctx.fillRect(50, 550, 700, 50);   // Hauptboden
+      ctx.fillRect(200, 450, 150, 25);  // Obere Plattform 1
+      ctx.fillRect(500, 400, 120, 25);  // Obere Plattform 2
+      
+      // Spieler rendern
+      Object.values(players).forEach((p) => {
+        ctx.save();
+        ctx.translate(p.x + p.width/2, p.y + p.height/2);
+        
+        // Smash-Figur (Kreis + Augen)
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(0, 0, p.width/2, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Augen
+        ctx.fillStyle = 'white';
+        ctx.beginPath();
+        ctx.arc(-8, -8, 6, 0, Math.PI*2);
+        ctx.arc(8, -8, 6, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = 'black';
+        ctx.beginPath();
+        ctx.arc(-6, -6, 3, 0, Math.PI*2);
+        ctx.arc(6, -6, 3, 0, Math.PI*2);
+        ctx.fill();
+        
+        ctx.restore();
+        
+        // ID & Respawn-Timer
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 14px Arial';
+        ctx.fillText(p.id, p.x, p.y - 10);
+        if (p.respawnTimer > 0) {
+          ctx.fillStyle = 'red';
+          ctx.fillText(`Respawn: ${Math.ceil(5 - p.respawnTimer)}s`, p.x, p.y + 75);
+        }
+      });
+    });
+
+    const keys = {};
+    window.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; });
+    window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+
+    function update() {
+      // Bewegung (Smash-kompatibel)
+      player.vx *= 0.85;  // Reibung
+      if (keys['a'] || keys['arrowleft']) player.vx = Math.max(player.vx - 0.5, -6);
+      if (keys['d'] || keys['arrowright']) player.vx = Math.min(player.vx + 0.5, 6);
+      if ((keys['w'] || keys['arrowup']) && player.onGround) {
+        player.vy = -18;  // Starker Smash-Sprung
+        player.onGround = false;
+      }
+
+      // Physik
+      player.vy += 1.0;
+      player.x += player.vx;
+      player.y += player.vy;
+
+      // Plattformen (erweiterte Kollision)
+      const platforms = [
+        {x:50, y:550, w:700, h:50},
+        {x:200, y:450, w:150, h:25},
+        {x:500, y:400, w:120, h:25}
+      ];
+      
+      player.onGround = false;
+      platforms.forEach(plat => {
+        if (player.vy >= 0 && 
+            player.x + player.width > plat.x && player.x < plat.x + plat.w &&
+            player.y + player.height <= plat.y + plat.h + 5 && 
+            player.y + player.height + player.vy >= plat.y) {
+          player.y = plat.y - player.height;
+          player.vy = 0;
+          player.onGround = true;
+        }
+      });
+
+      // Smash-Arena-Wände
+      if (player.x < 10) player.x = 10;
+      if (player.x > 790 - player.width) player.x = 790 - player.width;
+
+      // Respawn-Logik (5 Sekunden)
+      if (player.y > 650) {
+        player.respawnTimer += 1/60;
+        player.vx = 0;
+        player.vy = 0;
+        if (player.respawnTimer > 5) {
+          player.x = 100 + Math.random() * 500;
+          player.y = 300;
+          player.vy = 0;
+          player.respawnTimer = 0;
+        }
+      } else if (player.respawnTimer > 0) {
+        player.respawnTimer = 0;
+      }
+
+      socket.emit('playerUpdate', player);
+    }
+
+    // 60 FPS Game Loop
+    setInterval(update, 1000 / 60);
+  </script>
+</body>
+</html>
